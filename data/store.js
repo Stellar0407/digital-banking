@@ -3,6 +3,23 @@ const path = require("path");
 
 const dataFile = path.join(__dirname, "../storage/data.json");
 
+if (!fs.existsSync(dataFile)) {
+  fs.mkdirSync(path.dirname(dataFile), { recursive: true });
+
+  fs.writeFileSync(
+    dataFile,
+    JSON.stringify(
+      {
+        customers: [],
+        accounts: [],
+        transactions: []
+      },
+      null,
+      2
+    )
+  );
+}
+
 const data = JSON.parse(fs.readFileSync(dataFile, "utf-8"));
 
 const customers = data.customers;
