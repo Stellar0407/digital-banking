@@ -1,0 +1,217 @@
+const express = require("express");
+const { nibssRequest } = require("../services/nibssService");
+const { accounts, transactions, saveData } = require("../data/store");
+const authenticateToken = require("../middleware/authMiddleware");
+
+const router = express.Router();
+
+router.get("/name-enquiry/:accountNumber", async (req, res) => {
+  try {
+    const { accountNumber } = req.params;
+
+    const result = await nibssRequest(
+      "GET",
+      `/api/account/name-enquiry/${accountNumber}`
+    );
+
+    res.json({
+      message: "Name enquiry successful",
+      accountName: result.accountName,
+      accountNumber: result.accountNumber,
+      bankCode: result.bankCode
+    });
+
+  } catch (error) {
+    console.error(
+      "Name enquiry error:",
+      error.response?.data || error.message
+    );
+
+    res.status(500).json({
+      message: "Name enquiry failed"
+    });
+  }
+});
+
+router.post("/transfer", authenticateToken, async (req, res) => {
+  try {
+    const { from, to, amount } = req.body;
+
+  if (!from || !to || amount === undefined) {
+  return res.status(400).json({
+    message: "From account, to account, and amount are required"
+  });
+}
+
+if (typeof amount !== "number" || amount <= 0) {
+  return res.status(400).json({
+    message: "Transfer amount must be a positive number"
+  });
+}
+const senderAccount = accounts.find(
+  account => account.accountNumber === from
+);
+
+if (!senderAccount) {
+  return res.status(404).json({
+    message: "Sender account not found"
+  });
+}
+
+if (senderAccount.customerId !== req.user.customerId) {
+  return res.status(403).json({
+    message: "You can only transfer from your own account"
+  });
+}
+
+    const result = await nibssRequest("POST", "/api/transfer", {
+      from,
+      to,
+      amount
+    });
+
+if (result.status === "SUCCESS") {
+  senderAccount.balance -= amount;
+}
+
+const transaction = {
+  reference: result.reference,
+  customerId: senderAccount?.customerId || null,
+  from,
+  to,
+  amount,
+  status: result.status
+};
+
+    transactions.push(transaction);
+    saveData();
+
+    res.status(201).json({
+      message: "Transfer successful",
+      transaction
+    });
+  } catch (error) {
+    console.error(
+      "Transfer error:",
+      error.response?.data || error.message
+    );
+
+    res.status(500).json({
+      message: "Transfer failed"
+    });
+  }
+});
+
+router.get("/transaction/:reference", authenticateToken, async (req, res) => {
+  try {
+    const { reference } = req.params;
+    
+    const localTransaction = transactions.find(
+  transaction => transaction.reference === reference
+);
+
+if (!localTransaction) {
+  return res.status(404).json({
+    message: "Transaction not found"
+  });
+}
+
+if (localTransaction.customerId !== req.user.customerId) {
+  return res.status(403).json({
+    message: "You can only access your own transaction"
+  });
+}
+
+    const result = await nibssRequest(
+      "GET",
+      `/api/transaction/${reference}`
+    );
+
+    res.json({
+      message: "Transaction retrieved successfully",
+      transaction: result
+    });
+  } catch (error) {
+    console.error(
+      "Transaction status error:",
+      error.response?.data || error.message
+    );
+
+    res.status(500).json({
+      message: "Transaction status check failed"
+    });
+  }
+});
+
+router.get("/balance/:accountNumber", authenticateToken, async (req, res) => {
+  try {
+    const { accountNumber } = req.params;
+    
+    const account = accounts.find(
+  account => account.accountNumber === accountNumber
+);
+
+if (!account) {
+  return res.status(404).json({
+    message: "Account not found"
+  });
+}
+
+if (account.customerId !== req.user.customerId) {
+  return res.status(403).json({
+    message: "You can only access your own account balance"
+  });
+}
+
+    const result = await nibssRequest(
+      "GET",
+      `/api/account/balance/${accountNumber}`
+    );
+
+    res.json({
+      message: "Balance retrieved successfully",
+      balance: result
+    });
+  } catch (error) {
+    console.error(
+      "Balance check error:",
+      error.response?.data || error.message
+    );
+
+    res.status(500).json({
+      message: "Balance check failed"
+    });
+  }
+});
+
+router.get("/transactions/:customerId", authenticateToken, (req, res) => {
+  try {
+    const customerId = Number(req.params.customerId);
+
+    if (req.user.customerId !== customerId) {
+      return res.status(403).json({
+        message: "You can only access your own transaction history"
+      });
+    }
+
+    const customerTransactions = transactions.filter(
+      transaction => transaction.customerId === customerId
+    );
+
+    res.json({
+      message: "Transaction history retrieved successfully",
+      transactions: customerTransactions
+    });
+  } catch (error) {
+    console.error(
+      "Transaction history error:",
+      error.message
+    );
+
+    res.status(500).json({
+      message: "Unable to retrieve transaction history"
+    });
+  }
+});
+
+module.exports = router;
