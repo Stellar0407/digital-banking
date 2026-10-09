@@ -70,10 +70,6 @@ if (senderAccount.customerId !== req.user.customerId) {
       amount
     });
 
-if (result.status === "SUCCESS") {
-  senderAccount.balance -= amount;
-}
-
 const transaction = {
   reference: result.reference,
   customerId: senderAccount?.customerId || null,
@@ -86,10 +82,13 @@ const transaction = {
     transactions.push(transaction);
     saveData();
 
-    res.status(201).json({
-      message: "Transfer successful",
-      transaction
-    });
+   res.status(result.status === "SUCCESS" ? 201 : 200).json({
+  message:
+    result.status === "SUCCESS"
+      ? "Transfer successful"
+      : "Transfer was not successful",
+  transaction
+});
   } catch (error) {
     console.error(
       "Transfer error:",
