@@ -214,4 +214,49 @@ router.get("/transactions/:customerId", authenticateToken, (req, res) => {
   }
 });
 
+router.post("/webhook", (req, res) => {
+  try {
+    const event = req.headers["x-webhook-event"];
+
+    if (event !== "INWARD_TRANSACTION") {
+      return res.status(400).json({
+        message: "Unsupported webhook event"
+      });
+    }
+
+    const { data } = req.body;
+
+    if (!data) {
+      return res.status(400).json({
+        message: "Webhook data is missing"
+      });
+    }
+
+    const transaction = {
+      reference: data.reference,
+      customerId: null,
+      from: data.senderAccount,
+      to: data.receiverAccount,
+      amount: data.amount,
+      status: data.status
+    };
+
+    transactions.push(transaction);
+    saveData();
+
+    res.status(200).json({
+      message: "Webhook received successfully"
+    });
+  } catch (error) {
+    console.error(
+      "Webhook error:",
+      error.message
+    );
+
+    res.status(500).json({
+      message: "Webhook processing failed"
+    });
+  }
+});
+
 module.exports = router;
