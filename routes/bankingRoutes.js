@@ -70,6 +70,7 @@ if (senderAccount.customerId !== req.user.customerId) {
       amount
     });
 
+
 const transaction = {
   reference: result.reference,
   customerId: senderAccount?.customerId || null,
@@ -114,6 +115,9 @@ if (!localTransaction) {
     message: "Transaction not found"
   });
 }
+
+console.log("Transaction customerId:", localTransaction.customerId);
+console.log("Logged-in customerId:", req.user.customerId);
 
 if (localTransaction.customerId !== req.user.customerId) {
   return res.status(403).json({
