@@ -214,6 +214,7 @@ router.get("/transactions/:customerId", authenticateToken, (req, res) => {
   }
 });
 
+
 router.post("/webhook", (req, res) => {
   try {
     const event = req.headers["x-webhook-event"];
@@ -226,15 +227,41 @@ router.post("/webhook", (req, res) => {
 
     const { data } = req.body;
 
-    if (!data) {
+    if (
+      !data ||
+      !data.reference ||
+      !data.receiverAccount ||
+      data.amount === undefined ||
+      !data.status
+    ) {
       return res.status(400).json({
-        message: "Webhook data is missing"
+        message: "Webhook data is missing required fields"
       });
     }
 
+    // Prevent the same transaction from being saved twice.
+    const existingTransaction = transactions.find(
+      (transaction) =>
+        transaction.reference === data.reference
+    );
+
+    if (existingTransaction) {
+      return res.status(200).json({
+        message: "Transaction already received"
+      });
+    }
+
+    // Find the local account receiving the money.
+    const receivingAccount = accounts.find(
+      (account) =>
+        account.accountNumber === data.receiverAccount
+    );
+
     const transaction = {
       reference: data.reference,
-      customerId: null,
+      customerId: receivingAccount
+        ? receivingAccount.customerId
+        : null,
       from: data.senderAccount,
       to: data.receiverAccount,
       amount: data.amount,
@@ -244,16 +271,13 @@ router.post("/webhook", (req, res) => {
     transactions.push(transaction);
     saveData();
 
-    res.status(200).json({
+    return res.status(200).json({
       message: "Webhook received successfully"
     });
   } catch (error) {
-    console.error(
-      "Webhook error:",
-      error.message
-    );
+    console.error("Webhook error:", error.message);
 
-    res.status(500).json({
+    return res.status(500).json({
       message: "Webhook processing failed"
     });
   }
