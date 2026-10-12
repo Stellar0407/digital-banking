@@ -119,12 +119,19 @@ if (!localTransaction) {
 console.log("Transaction customerId:", localTransaction.customerId);
 console.log("Logged-in customerId:", req.user.customerId);
 
-if (localTransaction.customerId !== req.user.customerId) {
+
+const transactionCustomerId = Number(localTransaction.customerId);
+const loggedInCustomerId = Number(req.user.customerId);
+
+if (
+  !Number.isFinite(transactionCustomerId) ||
+  !Number.isFinite(loggedInCustomerId) ||
+  transactionCustomerId !== loggedInCustomerId
+) {
   return res.status(403).json({
     message: "You can only access your own transaction"
   });
 }
-
     const result = await nibssRequest(
       "GET",
       `/api/transaction/${reference}`
