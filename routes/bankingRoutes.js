@@ -102,42 +102,44 @@ const transaction = {
   }
 });
 
+
 router.get("/transaction/:reference", authenticateToken, async (req, res) => {
   try {
     const { reference } = req.params;
-    
+
+    // Find the transaction in the local records.
     const localTransaction = transactions.find(
-  transaction => transaction.reference === reference
-);
+      (transaction) => transaction.reference === reference
+    );
 
-if (!localTransaction) {
-  return res.status(404).json({
-    message: "Transaction not found"
-  });
-}
+    // Return 404 if the transaction is not in the local records.
+    if (!localTransaction) {
+      return res.status(404).json({
+        message: "Transaction not found in local records"
+      });
+    }
 
-console.log("Transaction customerId:", localTransaction.customerId);
-console.log("Logged-in customerId:", req.user.customerId);
+    // Confirm that the transaction belongs to the logged-in customer.
+    const transactionCustomerId = Number(localTransaction.customerId);
+    const loggedInCustomerId = Number(req.user.customerId);
 
+    if (
+      !Number.isFinite(transactionCustomerId) ||
+      !Number.isFinite(loggedInCustomerId) ||
+      transactionCustomerId !== loggedInCustomerId
+    ) {
+      return res.status(403).json({
+        message: "You can only access your own transaction"
+      });
+    }
 
-const transactionCustomerId = Number(localTransaction.customerId);
-const loggedInCustomerId = Number(req.user.customerId);
-
-if (
-  !Number.isFinite(transactionCustomerId) ||
-  !Number.isFinite(loggedInCustomerId) ||
-  transactionCustomerId !== loggedInCustomerId
-) {
-  return res.status(403).json({
-    message: "You can only access your own transaction"
-  });
-}
+    // Retrieve the transaction status from NIBSS.
     const result = await nibssRequest(
       "GET",
       `/api/transaction/${reference}`
     );
 
-    res.json({
+    return res.status(200).json({
       message: "Transaction retrieved successfully",
       transaction: result
     });
@@ -147,7 +149,7 @@ if (
       error.response?.data || error.message
     );
 
-    res.status(500).json({
+    return res.status(500).json({
       message: "Transaction status check failed"
     });
   }
