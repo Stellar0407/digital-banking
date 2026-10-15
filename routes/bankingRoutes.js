@@ -235,8 +235,7 @@ router.get(
 );
 
 // Check account balance
-router.get(
-  "/balance/:accountNumber",
+router.get("/balance/:accountNumber",
   authenticateToken,
   async (req, res) => {
     try {
@@ -261,14 +260,32 @@ router.get(
       }
 
       const result = await nibssRequest(
-        "GET",
-        `/api/account/balance/${accountNumber}`
-      );
+  "GET",
+  `/api/account/balance/${accountNumber}`
+);
 
-      return res.json({
-        message: "Balance retrieved successfully",
-        balance: result
-      });
+// Extract the balance from the NIBSS response.
+const balanceValue =
+  typeof result === "number"
+    ? result
+    : result?.balance;
+
+const currentBalance = Number(balanceValue);
+
+if (!Number.isFinite(currentBalance) || currentBalance < 0) {
+  return res.status(502).json({
+    message: "NIBSS returned an invalid account balance"
+  });
+}
+
+// Keep the local balance synchronized with NIBSS.
+account.balance = currentBalance;
+await account.save();
+
+return res.json({
+  message: "Balance retrieved successfully",
+  balance: currentBalance
+});
     } catch (error) {
       console.error(
         "Balance check error:",

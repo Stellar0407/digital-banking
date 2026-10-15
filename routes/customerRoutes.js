@@ -184,7 +184,9 @@ router.post("/nin/validate", async (req, res) => {
     const { nin } = req.body;
 
     if (!nin) {
-      return res.status(400).json({ message: "NIN is required" });
+      return res.status(400).json({
+        message: "NIN is required"
+      });
     }
 
     const customer = await Customer.findOne({
@@ -193,10 +195,31 @@ router.post("/nin/validate", async (req, res) => {
     });
 
     if (!customer) {
-      return res.status(404).json({ message: "Customer not found" });
+      return res.status(404).json({
+        message: "Customer not found"
+      });
     }
 
-    const result = await nibssRequest("POST", "/api/validateNin", { nin });
+    const result = await nibssRequest(
+      "POST",
+      "/api/validateNin",
+      { nin }
+    );
+
+    // Only mark the customer verified if NIBSS
+    // explicitly confirms successful validation.
+    const verificationSucceeded =
+  result?.message === "NIN Verified!!" &&
+  result?.response?.nin === nin;
+
+    if (!verificationSucceeded) {
+      customer.kycVerified = false;
+      await customer.save();
+
+      return res.status(400).json({
+        message: "NIN verification was not successful"
+      });
+    }
 
     customer.kycVerified = true;
     await customer.save();
@@ -207,8 +230,14 @@ router.post("/nin/validate", async (req, res) => {
       nibssResponse: result
     });
   } catch (error) {
-    console.error("NIN validation error:", error.response?.data || error.message);
-    return res.status(500).json({ message: "NIN validation failed" });
+    console.error(
+      "NIN validation error:",
+      error.response?.data || error.message
+    );
+
+    return res.status(500).json({
+      message: "NIN validation failed"
+    });
   }
 });
 
